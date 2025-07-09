@@ -1,0 +1,67 @@
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  background-color: #ffffff;
+  border-bottom: 2px solid #e9ecef;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.topbar-logo {
+  height: 50px;
+  width: auto;
+}
+
+.app-content {
+  flex: 1;
+}
+
+.left-sidebar {
+  min-height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px;
+  color: #282c34;
+  overflow-y: auto;
+  border-right: 1px solid #eee;
+}
+
+.main-content {
+  background-color: #282c34;
+  min-height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.right-sidebar {
+  min-height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px;
+  color: #282c34;
+  overflow-y: auto;
+  border-left: 1px solid #eee;
+}
+
+.App-header {
+  /* No specific changes needed here for layout, existing styles should be fine */
+}
+
+.error-message {
+  color: #dc3545;
+}

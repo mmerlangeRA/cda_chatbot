@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Form, Button, Spinner, ListGroup, Alert } from 'react-bootstrap';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Form, Button, Spinner, ListGroup, Alert } from 'react-bootstrap';
+import { Documents } from './documents';
 import './App.css';
 
 interface AnswerItem {
@@ -8,53 +9,109 @@ interface AnswerItem {
   url: string;
 }
 
-interface DocumentItem {
-  id: number;
-  name: string;
-  url: string;
-}
-
 const App: React.FC = () => {
   const [question, setQuestion] = useState<string>('');
   const [answer, setAnswer] = useState<AnswerItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState<boolean>(false);
-  const [uploadMessage, setUploadMessage] = useState<string>('');
-  const [uploadError, setUploadError] = useState<string>('');
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [fetchingDocuments, setFetchingDocuments] = useState<boolean>(false);
-  const [documentError, setDocumentError] = useState<string>('');
+  
+  // Sidebar state management
+  const [leftSidebarVisible, setLeftSidebarVisible] = useState<boolean>(true);
+  const [rightSidebarVisible, setRightSidebarVisible] = useState<boolean>(true);
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState<number>(300);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState<number>(350);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragSide, setDragSide] = useState<'left' | 'right' | null>(null);
+
+  const leftResizeRef = useRef<HTMLDivElement>(null);
+  const rightResizeRef = useRef<HTMLDivElement>(null);
 
   const chatbotServerUrl = process.env.REACT_APP_CHATBOT_SERVER_URL;
-  const documentServerUrl = process.env.REACT_APP_DOCUMENT_SERVER_URL;
 
-  const fetchDocuments = async () => {
-    if (!documentServerUrl) {
-      setDocumentError('Document server URL is not configured. Please check your .env file.');
-      return;
-    }
-    setFetchingDocuments(true);
-    setDocumentError('');
-    try {
-      const response = await fetch(`${documentServerUrl}/api/documents/detailed/`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+  // Load sidebar preferences from localStorage
+  useEffect(() => {
+    const savedLeftVisible = localStorage.getItem('leftSidebarVisible');
+    const savedRightVisible = localStorage.getItem('rightSidebarVisible');
+    const savedLeftWidth = localStorage.getItem('leftSidebarWidth');
+    const savedRightWidth = localStorage.getItem('rightSidebarWidth');
+
+    if (savedLeftVisible !== null) setLeftSidebarVisible(JSON.parse(savedLeftVisible));
+    if (savedRightVisible !== null) setRightSidebarVisible(JSON.parse(savedRightVisible));
+    if (savedLeftWidth) setLeftSidebarWidth(parseInt(savedLeftWidth));
+    if (savedRightWidth) setRightSidebarWidth(parseInt(savedRightWidth));
+  }, []);
+
+  // Save sidebar preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem('leftSidebarVisible', JSON.stringify(leftSidebarVisible));
+    localStorage.setItem('rightSidebarVisible', JSON.stringify(rightSidebarVisible));
+    localStorage.setItem('leftSidebarWidth', leftSidebarWidth.toString());
+    localStorage.setItem('rightSidebarWidth', rightSidebarWidth.toString());
+  }, [leftSidebarVisible, rightSidebarVisible, leftSidebarWidth, rightSidebarWidth]);
+
+  // Toggle functions
+  const toggleLeftSidebar = () => setLeftSidebarVisible(!leftSidebarVisible);
+  const toggleRightSidebar = () => setRightSidebarVisible(!rightSidebarVisible);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case '1':
+            e.preventDefault();
+            setLeftSidebarVisible(prev => !prev);
+            break;
+          case '2':
+            e.preventDefault();
+            setRightSidebarVisible(prev => !prev);
+            break;
+        }
       }
-      const data: DocumentItem[] = await response.json();
-      setDocuments(data);
-    } catch (err) {
-      console.error('Error fetching documents:', err);
-      setDocumentError('Failed to fetch documents. Please check the server URL.');
-    } finally {
-      setFetchingDocuments(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Drag functionality with useCallback
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging || !dragSide) return;
+
+    const containerRect = document.querySelector('.app-layout')?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    if (dragSide === 'left') {
+      const newWidth = Math.max(200, Math.min(500, e.clientX - containerRect.left));
+      setLeftSidebarWidth(newWidth);
+    } else if (dragSide === 'right') {
+      const newWidth = Math.max(200, Math.min(500, containerRect.right - e.clientX));
+      setRightSidebarWidth(newWidth);
     }
+  }, [isDragging, dragSide]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+    setDragSide(null);
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  }, [handleMouseMove]);
+
+  const handleMouseDown = (side: 'left' | 'right') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setDragSide(side);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
+  // Cleanup event listeners on unmount
   useEffect(() => {
-    fetchDocuments();
-  }, [documentServerUrl]); // Re-fetch documents if documentServerUrl changes
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,111 +149,63 @@ const App: React.FC = () => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      setUploadMessage('');
-      setUploadError('');
-    } else {
-      setSelectedFile(null);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadError('Please select a file to upload.');
-      return;
-    }
-
-    if (!documentServerUrl) {
-      setUploadError('Document server URL is not configured. Please check your .env file.');
-      return;
-    }
-
-    setUploading(true);
-    setUploadMessage('');
-    setUploadError('');
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
-    try {
-      const response = await fetch(`${documentServerUrl}/api/documents/upload/`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      setUploadMessage(result.message || 'File uploaded successfully!');
-      setSelectedFile(null); // Clear selected file after successful upload
-      fetchDocuments(); // Refresh document list after upload
-    } catch (err) {
-      console.error('Error uploading file:', err);
-      setUploadError('Failed to upload file. Please check the server URL and try again.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleDeleteDocument = async (id: number) => {
-    if (!documentServerUrl) {
-      setDocumentError('Document server URL is not configured. Please check your .env file.');
-      return;
-    }
-    if (window.confirm('Are you sure you want to delete this document?')) {
-      try {
-        const response = await fetch(`${documentServerUrl}/api/documents/${id}/delete/`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        setUploadMessage('Document deleted successfully!');
-        fetchDocuments(); // Refresh document list after deletion
-      } catch (err) {
-        console.error('Error deleting document:', err);
-        setDocumentError('Failed to delete document. Please check the server URL.');
-      }
-    }
-  };
 
   return (
     <div className="App">
-      {/* Topbar with logo */}
+      {/* Topbar with logo and toggle buttons */}
       <div className="topbar">
-        <img 
-          src="/logo-chantiers-atlantique.svg" 
-          alt="Chantiers de l'Atlantique" 
-          className="topbar-logo"
-        />
+        <div className="topbar-left">
+          <button 
+            className="sidebar-toggle-btn"
+            onClick={toggleLeftSidebar}
+            title="Toggle Documents Sidebar (Ctrl+1)"
+          >
+            📁
+          </button>
+          <img 
+            src="/logo-chantiers-atlantique.svg" 
+            alt="Chantiers de l'Atlantique" 
+            className="topbar-logo"
+          />
+        </div>
+        <div className="topbar-right">
+          <button 
+            className="sidebar-toggle-btn"
+            onClick={toggleRightSidebar}
+            title="Toggle Answers Sidebar (Ctrl+2)"
+          >
+            💬
+          </button>
+        </div>
       </div>
       
-      <Container fluid className="app-content">
-      <Row>
-        <Col md={2} className="left-sidebar bg-light p-3">
-          <h2>Documents</h2>
-          {fetchingDocuments && <Spinner animation="border" size="sm" />}
-          {documentError && <Alert variant="danger">{documentError}</Alert>}
-          {!fetchingDocuments && documents.length === 0 && !documentError && <p>No documents found.</p>}
-          {!fetchingDocuments && documents.length > 0 && (
-            <ListGroup>
-              {documents.map((doc) => (
-                <ListGroup.Item key={doc.id} className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <p className="mb-1">{doc.name}</p>
-                    <small><a href={doc.url} target="_blank" rel="noopener noreferrer">View</a></small>
-                  </div>
-                  <Button variant="danger" size="sm" onClick={() => handleDeleteDocument(doc.id)}>Delete</Button>
-                </ListGroup.Item>
-              ))}
-            </ListGroup>
-          )}
-        </Col>
-        <Col md={7} className="main-content">
+      {/* Main layout */}
+      <div 
+        className={`app-layout ${isDragging ? 'dragging' : ''}`}
+        style={{
+          '--left-sidebar-width': leftSidebarVisible ? `${leftSidebarWidth}px` : '0px',
+          '--right-sidebar-width': rightSidebarVisible ? `${rightSidebarWidth}px` : '0px',
+        } as React.CSSProperties}
+      >
+        {/* Left Sidebar */}
+        <div 
+          className={`left-sidebar ${leftSidebarVisible ? 'visible' : 'hidden'}`}
+          style={{ width: leftSidebarVisible ? leftSidebarWidth : 0 }}
+        >
+          <Documents />
+        </div>
+
+        {/* Left Resize Handle */}
+        {leftSidebarVisible && (
+          <div 
+            className="resize-handle left-resize"
+            onMouseDown={handleMouseDown('left')}
+            ref={leftResizeRef}
+          />
+        )}
+
+        {/* Main Content */}
+        <div className="main-content">
           <header className="App-header">
             <h1>CDA Chatbot</h1>
             <Form onSubmit={handleSubmit} className="mb-4">
@@ -214,22 +223,23 @@ const App: React.FC = () => {
               </Button>
             </Form>
             {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
-
-            <hr className="my-4" />
-
-            <h2>Upload Document</h2>
-            <Form.Group controlId="formFile" className="mb-3">
-              <Form.Label>Select a document to upload</Form.Label>
-              <Form.Control type="file" onChange={handleFileChange} />
-            </Form.Group>
-            <Button variant="success" onClick={handleUpload} disabled={uploading || !selectedFile}>
-              {uploading ? <Spinner animation="border" size="sm" /> : 'Upload Document'}
-            </Button>
-            {uploadMessage && <Alert variant="success" className="mt-3">{uploadMessage}</Alert>}
-            {uploadError && <Alert variant="danger" className="mt-3">{uploadError}</Alert>}
           </header>
-        </Col>
-        <Col md={3} className="right-sidebar bg-light p-3">
+        </div>
+
+        {/* Right Resize Handle */}
+        {rightSidebarVisible && (
+          <div 
+            className="resize-handle right-resize"
+            onMouseDown={handleMouseDown('right')}
+            ref={rightResizeRef}
+          />
+        )}
+
+        {/* Right Sidebar */}
+        <div 
+          className={`right-sidebar ${rightSidebarVisible ? 'visible' : 'hidden'}`}
+          style={{ width: rightSidebarVisible ? rightSidebarWidth : 0 }}
+        >
           <h2>Answers</h2>
           {loading && <Spinner animation="border" />}
           {!loading && answer.length === 0 && !error && <p>No answers yet. Ask a question!</p>}
@@ -243,9 +253,8 @@ const App: React.FC = () => {
               ))}
             </ListGroup>
           )}
-        </Col>
-      </Row>
-    </Container>
+        </div>
+      </div>
     </div>
   );
 };

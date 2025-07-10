@@ -92,11 +92,47 @@
   overflow-y: auto;
   overflow-x: hidden;
   transition: width 0.3s ease-in-out;
-  padding: 20px;
+  padding: 0;
   color: #282c34;
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+.right-sidebar-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.ask-question-form {
+  padding: 20px;
+  border-top: 1px solid #dee2e6;
+  background-color: #ffffff;
+  flex-shrink: 0;
+}
+
+.ask-question-form .form-label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+}
+
+.ask-question-form .form-control {
+  border-radius: 6px;
+  border: 1px solid #ced4da;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.ask-question-form .form-control:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.ask-question-form .btn {
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 .right-sidebar.hidden {

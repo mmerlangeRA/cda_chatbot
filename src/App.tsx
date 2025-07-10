@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Form, Button, Spinner, ListGroup, Alert } from 'react-bootstrap';
-import { Documents } from './documents';
+import { Documents } from './components/documents';
+import { AlertProvider, useAlert } from './contexts/AlertContext';
+import AlertSuccess from './components/messages/AlertSuccess';
+import AlertError from './components/messages/AlertError';
+import { RetrieverProvider, useRetriever } from './contexts/RetrieverContext';
+import { fetchRetrievers, getDocumentsFromRetriever } from './services/rag';
+import { Retriever } from './common/interfaces';
 import './App.css';
 
-interface AnswerItem {
-  id: string;
-  text: string;
-  url: string;
-}
+import { Chat } from './components/chat';
 
-const App: React.FC = () => {
-  const [question, setQuestion] = useState<string>('');
-  const [answer, setAnswer] = useState<AnswerItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+
+  const AppContent: React.FC = () => {
+  const { successMessage, errorMessage, setSuccessMessage, setErrorMessage } = useAlert();
+  const { retrievers, setRetrievers, selectedRetriever, setSelectedRetriever, setDocuments } = useRetriever();
   
   // Sidebar state management
   const [leftSidebarVisible, setLeftSidebarVisible] = useState<boolean>(true);
@@ -25,8 +26,6 @@ const App: React.FC = () => {
 
   const leftResizeRef = useRef<HTMLDivElement>(null);
   const rightResizeRef = useRef<HTMLDivElement>(null);
-
-  const chatbotServerUrl = process.env.REACT_APP_CHATBOT_SERVER_URL;
 
   // Load sidebar preferences from localStorage
   useEffect(() => {
@@ -113,41 +112,36 @@ const App: React.FC = () => {
     };
   }, [handleMouseMove, handleMouseUp]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!question.trim()) return;
-
-    if (!chatbotServerUrl) {
-      setError('Chatbot server URL is not configured. Please check your .env file.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setAnswer([]);
-
-    try {
-      const response = await fetch(chatbotServerUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ question }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+  useEffect(() => {
+    const loadRetrievers = async () => {
+      try {
+        const { retrievers } = await fetchRetrievers();
+        setRetrievers(retrievers);
+        if (retrievers.length > 0) {
+          setSelectedRetriever(retrievers[0]);
+        }
+      } catch (error) {
+        setErrorMessage('Failed to fetch retrievers.');
       }
+    };
 
-      const data: AnswerItem[] = await response.json();
-      setAnswer(data);
-    } catch (err) {
-      console.error('Error fetching answer:', err);
-      setError('Failed to fetch answer. Please check the server URL and try again.');
-    } finally {
-      setLoading(false);
+    loadRetrievers();
+  }, []);
+
+  useEffect(() => {
+    if (selectedRetriever) {
+      const loadDocuments = async () => {
+        try {
+          const { documents } = await getDocumentsFromRetriever(selectedRetriever.name);
+          setDocuments(documents || []);
+        } catch (error) {
+          setErrorMessage(`Failed to fetch documents for ${selectedRetriever.name}.`);
+        }
+      };
+
+      loadDocuments();
     }
-  };
+  }, [selectedRetriever, setDocuments, setErrorMessage]);
 
 
   return (
@@ -167,6 +161,13 @@ const App: React.FC = () => {
             alt="Chantiers de l'Atlantique" 
             className="topbar-logo"
           />
+          <Form.Group controlId="formRetriever" className="ms-3">
+            <Form.Select onChange={(e) => setSelectedRetriever(retrievers.find(r => r.name === e.target.value) || null)} value={selectedRetriever?.name || ''}>
+              {retrievers.map(retriever => (
+                <option key={retriever.name} value={retriever.name}>{retriever.name}</option>
+              ))}
+            </Form.Select>
+          </Form.Group>
         </div>
         <div className="topbar-right">
           <button 
@@ -208,21 +209,8 @@ const App: React.FC = () => {
         <div className="main-content">
           <header className="App-header">
             <h1>CDA Chatbot</h1>
-            <Form onSubmit={handleSubmit} className="mb-4">
-              <Form.Group className="mb-3">
-                <Form.Control
-                  type="text"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ask a question..."
-                  disabled={loading}
-                />
-              </Form.Group>
-              <Button variant="primary" type="submit" disabled={loading}>
-                {loading ? <Spinner animation="border" size="sm" /> : 'Ask'}
-              </Button>
-            </Form>
-            {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
+            <AlertSuccess message={successMessage} onClose={() => setSuccessMessage('')} />
+            <AlertError message={errorMessage} onClose={() => setErrorMessage('')} />
           </header>
         </div>
 
@@ -240,23 +228,19 @@ const App: React.FC = () => {
           className={`right-sidebar ${rightSidebarVisible ? 'visible' : 'hidden'}`}
           style={{ width: rightSidebarVisible ? rightSidebarWidth : 0 }}
         >
-          <h2>Answers</h2>
-          {loading && <Spinner animation="border" />}
-          {!loading && answer.length === 0 && !error && <p>No answers yet. Ask a question!</p>}
-          {!loading && answer.length > 0 && (
-            <ListGroup>
-              {answer.map((item) => (
-                <ListGroup.Item key={item.id}>
-                  <h5>{item.text}</h5>
-                  <a href={item.url} target="_blank" rel="noopener noreferrer">{item.url}</a>
-                </ListGroup.Item>
-              ))}
-            </ListGroup>
-          )}
+          <Chat />
         </div>
       </div>
     </div>
   );
 };
+
+const App: React.FC = () => (
+  <RetrieverProvider>
+    <AlertProvider>
+      <AppContent />
+    </AlertProvider>
+  </RetrieverProvider>
+);
 
 export default App;

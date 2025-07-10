@@ -8,6 +8,12 @@ export const fetchDocuments = async (): Promise<DocumentItem[]> => {
   return response.data;
 };
 
+
+export const getDocument = async (documentId:number): Promise<DocumentItem> => {
+  const response = await api.get(`/documents/${documentId}/`);
+  return response.data;
+};
+
 export const uploadDocument = async (file: File): Promise<any> => {
   const formData = new FormData();
   formData.append('file', file);

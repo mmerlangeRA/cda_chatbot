@@ -5,10 +5,12 @@ import { useRetriever } from '../../contexts/RetrieverContext';
 import { searchWithRetriever, chatWithMistral } from '../../services/rag';
 import Query from './Query';
 import Messages from './Messages';
+import { Chunk } from '../../common/interfaces';
 
 interface ChatMessage {
   type: 'query' | 'answer';
   content: string | object;
+  chunks?: Chunk[];
 }
 
 const Chat: React.FC = () => {
@@ -24,18 +26,46 @@ const Chat: React.FC = () => {
     setErrorMessage('');
 
     try {
-      let data: any;
+      let answerContent: string | object;
+      let answerChunks: Chunk[] | undefined;
+
       if (useMistral) {
-        data = await chatWithMistral(query);
+        if (!selectedRetriever) {
+          setErrorMessage('Please select a retriever first to use Mistral with RAG.');
+          setLoading(false);
+          return;
+        }
+        // First, search with the retriever
+        const retrieverResponse = await searchWithRetriever(selectedRetriever.name, query);
+        answerChunks = retrieverResponse.chunks || [];
+        
+        let context = "";
+        if (answerChunks.length > 0) {
+          context = "Use the following information to answer the question:\n\n" +
+                    answerChunks.map(chunk => chunk.text).join("\n\n") +
+                    "\n\n";
+        }
+
+        const ollamaMessages = messages.map(msg => ({
+          role: msg.type === 'query' ? 'user' : 'assistant',
+          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        }));
+        
+        // Add the context and the current query to the messages for Ollama
+        ollamaMessages.push({ role: 'user', content: context + query });
+        
+        answerContent = await chatWithMistral(ollamaMessages);
       } else {
         if (!selectedRetriever) {
           setErrorMessage('Please select a retriever first.');
           setLoading(false);
           return;
         }
-        data = await searchWithRetriever(selectedRetriever.name, query);
+        const retrieverResponse = await searchWithRetriever(selectedRetriever.name, query);
+        answerContent = "Que chunks";
+        answerChunks = retrieverResponse.chunks || [];
       }
-      setMessages(prevMessages => [...prevMessages, { type: 'answer', content: data }]);
+      setMessages(prevMessages => [...prevMessages, { type: 'answer', content: answerContent, chunks: answerChunks }]);
     } catch (err) {
       console.error('Error during chat/search:', err);
       setErrorMessage('Failed to get a response. Please check the server URL and try again.');
@@ -43,6 +73,7 @@ const Chat: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="right-sidebar-content">

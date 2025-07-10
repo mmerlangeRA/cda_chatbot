@@ -10,11 +10,13 @@ import { Retriever } from './common/interfaces';
 import './App.css';
 
 import { Chat } from './components/chat';
+import { PdfViewer } from './components/pdfviewer';
+import { PdfViewerProvider, usePdfViewer } from './contexts/PdfViewerContext';
 
-
-  const AppContent: React.FC = () => {
+const AppContent: React.FC = () => {
   const { successMessage, errorMessage, setSuccessMessage, setErrorMessage } = useAlert();
   const { retrievers, setRetrievers, selectedRetriever, setSelectedRetriever, setDocuments } = useRetriever();
+  const { pdfUrl, setPdfUrl } = usePdfViewer();
   
   // Sidebar state management
   const [leftSidebarVisible, setLeftSidebarVisible] = useState<boolean>(true);
@@ -208,10 +210,10 @@ import { Chat } from './components/chat';
         {/* Main Content */}
         <div className="main-content">
           <header className="App-header">
-            <h1>CDA Chatbot</h1>
             <AlertSuccess message={successMessage} onClose={() => setSuccessMessage('')} />
             <AlertError message={errorMessage} onClose={() => setErrorMessage('')} />
           </header>
+          <PdfViewer pdfUrl={pdfUrl} />
         </div>
 
         {/* Right Resize Handle */}
@@ -238,7 +240,9 @@ import { Chat } from './components/chat';
 const App: React.FC = () => (
   <RetrieverProvider>
     <AlertProvider>
-      <AppContent />
+      <PdfViewerProvider>
+        <AppContent />
+      </PdfViewerProvider>
     </AlertProvider>
   </RetrieverProvider>
 );

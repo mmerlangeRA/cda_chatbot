@@ -65,9 +65,9 @@ export const searchWithRetriever = async (retriverName: string, query: string): 
     return response.data;
 };
 
-export const chatWithMistral = async (query: string): Promise<string> => {
+export const chatWithMistral = async (messages: { role: string; content: string }[]): Promise<string> => {
     try {
-        const response = await callOllama(query);
+        const response = await callOllama(messages);
         return response;
     } catch (error: any) {
         throw new Error(error.message);

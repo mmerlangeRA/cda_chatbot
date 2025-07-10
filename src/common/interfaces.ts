@@ -7,8 +7,9 @@ export interface DocumentItem {
 export interface Chunk {
   id: number;
   text: string;
-  document_id: string;
+  document_id: number;
   metadata?:string;
+  confidence:number;
 }
 
 export interface Retriever{

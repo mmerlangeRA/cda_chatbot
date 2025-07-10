@@ -16,9 +16,13 @@ const Message: React.FC<MessageProps> = ({ type, content }) => {
       {isQuery ? (
         <p className="mb-0">{content as string}</p>
       ) : (
-        <pre className="mb-0" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {JSON.stringify(content, null, 2)}
-        </pre>
+        typeof content === 'string' ? (
+          <p className="mb-0">{content}</p>
+        ) : (
+          <pre className="mb-0" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {JSON.stringify(content, null, 2)}
+          </pre>
+        )
       )}
     </ListGroup.Item>
   );

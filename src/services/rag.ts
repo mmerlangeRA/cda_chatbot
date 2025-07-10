@@ -1,6 +1,7 @@
 
 import { Chunk, DocumentItem, Retriever } from '../common/interfaces';
 import api from './server_api';
+import { callOllama } from './ollama';
 
 
 export const fetchRetrievers = async (): Promise<{ retrievers: Retriever[], count: number }> => {
@@ -62,4 +63,13 @@ export const searchWithRetriever = async (retriverName: string, query: string): 
     }
     const response = await api.post(`/rag/${retriverName}/search/`, payload);
     return response.data;
+};
+
+export const chatWithMistral = async (query: string): Promise<string> => {
+    try {
+        const response = await callOllama(query);
+        return response;
+    } catch (error: any) {
+        throw new Error(error.message);
+    }
 };

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Spinner, Form } from 'react-bootstrap';
 import { useAlert } from '../../contexts/AlertContext';
 import { useRetriever } from '../../contexts/RetrieverContext';
-import { searchWithRetriever, chatWithMistral } from '../../services/rag';
+import { searchWithRetriever, chatWithMistral, searchPagesWithRetriever } from '../../services/rag';
 import Query from './Query';
 import Messages from './Messages';
 import { Chunk } from '../../common/interfaces';
@@ -36,13 +36,16 @@ const Chat: React.FC = () => {
           return;
         }
         // First, search with the retriever
-        const retrieverResponse = await searchWithRetriever(selectedRetriever.name, query);
-        answerChunks = retrieverResponse.chunks || [];
+        const cabine =4741
+        const ligne = "L1"
+        const poste = "p0100"
+        const retrieverResponse = await searchPagesWithRetriever(selectedRetriever.name, query,cabine,ligne,poste);
+        answerChunks = retrieverResponse.pages || [];
         
         let context = "";
-        if (answerChunks.length > 0) {
+        if (answerChunks.length <0)  {
           context = "Use the following information to answer the question:\n\n" +
-                    answerChunks.map(chunk => chunk.text).join("\n\n") +
+                    answerChunks.map(chunk => chunk.document_id).join("\n\n") +
                     "\n\n";
         }
 
@@ -65,6 +68,7 @@ const Chat: React.FC = () => {
         answerContent = "Que chunks";
         answerChunks = retrieverResponse.chunks || [];
       }
+      console.log("answerChunks",answerChunks)
       setMessages(prevMessages => [...prevMessages, { type: 'answer', content: answerContent, chunks: answerChunks }]);
     } catch (err) {
       console.error('Error during chat/search:', err);

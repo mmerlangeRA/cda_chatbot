@@ -65,6 +65,23 @@ export const searchWithRetriever = async (retriverName: string, query: string): 
     return response.data;
 };
 
+export const searchPagesWithRetriever = async (retriverName: string, query: string, cabine:number, ligne:string,poste:string): Promise<{
+    pages?: Chunk[],
+    error?: string
+
+}> => {
+    const payload = {
+        "query": query,
+        "cabine":cabine,
+        "ligne":ligne,
+        "poste":poste,
+    }
+    const response = await api.post(`/rag/${retriverName}/search-pages/`, payload);
+    return response.data;
+};
+
+
+
 export const chatWithMistral = async (messages: { role: string; content: string }[]): Promise<string> => {
     try {
         const response = await callOllama(messages);

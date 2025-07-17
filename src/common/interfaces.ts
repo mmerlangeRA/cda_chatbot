@@ -8,7 +8,7 @@ export interface Chunk {
   id: number;
   text: string;
   document_id: number;
-  metadata?:string;
+  metadata?:{ [key: string]: any };
   confidence:number;
 }
 
@@ -17,3 +17,11 @@ export interface Retriever{
     type?:string;
     description?:string;
 }
+
+export interface DocumentPage {
+    document_id:number
+    document_url:string
+    metadata?:{ [key: string]: any };
+    confidence:number;
+}
+

@@ -9,7 +9,7 @@ interface SourcesProps {
 }
 
 const Sources: React.FC<SourcesProps> = ({ chunks }) => {
-  const { setPdfUrl } = usePdfViewer();
+  const { setPdfUrl, setTargetPage } = usePdfViewer();
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState('');
   const [modalTitle, setModalTitle] = useState('');
@@ -21,9 +21,16 @@ const Sources: React.FC<SourcesProps> = ({ chunks }) => {
   const handleSourceClick = async (chunk: Chunk) => {
     try {
       const document = await getDocument(chunk.document_id);
+      let page = 1; // default to page 1
+      if (chunk.metadata && chunk.metadata.page) {
+        page = chunk.metadata.page;
+      }
+      
       setPdfUrl(document.url);
-      //setModalTitle(`Source: ${document.name} (Page ${chunk.page_number})`);
-      setModalTitle(`Source: ${document.name} (confiance: ${Math.round(chunk.confidence*100)}) `);
+      console.log("setTargetPage",page)
+      setTargetPage(page); // Set the target page for automatic navigation
+      
+      setModalTitle(`Source: ${document.name} (Page ${page}) (confiance: ${Math.round(chunk.confidence*100)}%)`);
       setModalContent(chunk.text);
       setShowModal(true);
     } catch (error) {

@@ -2,7 +2,11 @@
 import { Chunk, DocumentItem, Retriever } from '../common/interfaces';
 import api from './server_api';
 import { callOllama } from './ollama';
+import { callOVH } from './ovh';
 
+const useOVH = process.env.REACT_APP_USE_OVH_OR_OLLAMA==="ovh"
+console.log("useOVH",useOVH)
+const chatFunc = useOVH ? callOVH:callOllama
 
 export const fetchRetrievers = async (): Promise<{ retrievers: Retriever[], count: number }> => {
     const response = await api.get('/rag/retrievers/');
@@ -84,7 +88,7 @@ export const searchPagesWithRetriever = async (retriverName: string, query: stri
 
 export const chatWithMistral = async (messages: { role: string; content: string }[]): Promise<string> => {
     try {
-        const response = await callOllama(messages);
+        const response = await chatFunc(messages);
         return response;
     } catch (error: any) {
         throw new Error(error.message);

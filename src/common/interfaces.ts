@@ -8,6 +8,7 @@ export interface Chunk {
   id: number;
   text: string;
   document_id: number;
+  document_url?:string
   metadata?:{ [key: string]: any };
   confidence:number;
 }
@@ -25,3 +26,7 @@ export interface DocumentPage {
     confidence:number;
 }
 
+export interface AgentStep {
+    action: any;
+    observation: string;
+}

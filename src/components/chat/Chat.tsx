@@ -1,97 +1,135 @@
-import React, { useState } from 'react';
-import { Spinner, Form } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Spinner } from 'react-bootstrap';
 import { useAlert } from '../../contexts/AlertContext';
 import { useRetriever } from '../../contexts/RetrieverContext';
-import { searchWithRetriever, chatWithMistral, searchPagesWithRetriever } from '../../services/rag';
+import { chatWithAgent, AgentResponse } from '../../services/langchain';
 import Query from './Query';
 import Messages from './Messages';
-import { Chunk } from '../../common/interfaces';
+import { Chunk, AgentStep } from '../../common/interfaces';
 
 interface ChatMessage {
-  type: 'query' | 'answer';
-  content: string | object;
+  type: 'query' | 'answer' | 'agent_thinking' | 'error';
+  content: string;
   chunks?: Chunk[];
+  agentSteps?: AgentStep[];
+  timestamp?: Date;
 }
 
 const Chat: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [useMistral, setUseMistral] = useState<boolean>(false);
+  const [sessionId] = useState<string>(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const { setErrorMessage } = useAlert();
   const { selectedRetriever } = useRetriever();
 
+  // Initialize with welcome message
+  useEffect(() => {
+    const welcomeMessage: ChatMessage = {
+      type: "answer",
+      content: `Bonjour ! Je suis votre assistant pour la recherche dans la base documentaire.
+
+Pour rechercher un document, j'ai besoin de connaître :
+- **cabine** (numéro de cabine)
+- **ligne** (identifiant de ligne, ex: "L1", "L2", etc.)
+- **poste** (identifiant de poste, ex: "p0100", "p0200", etc.)
+
+Vous pouvez me poser une question et je vous demanderai ces informations si nécessaire.
+
+Exemple : "Trouve-moi les procédures de sécurité pour la cabine 4741, ligne L1, poste p0100"`,
+      timestamp: new Date()
+    };
+    setMessages([welcomeMessage]);
+  }, []);
+  
   const handleQuerySubmit = async (query: string) => {
-    setMessages(prevMessages => [...prevMessages, { type: 'query', content: query }]);
+    if (!selectedRetriever) {
+      setErrorMessage('Veuillez sélectionner un retriever avant de commencer.');
+      return;
+    }
+
+    // Add user query to messages
+    const userMessage: ChatMessage = {
+      type: 'query',
+      content: query,
+      timestamp: new Date()
+    };
+    setMessages(prevMessages => [...prevMessages, userMessage]);
+    
     setLoading(true);
     setErrorMessage('');
 
     try {
-      let answerContent: string | object;
-      let answerChunks: Chunk[] | undefined;
+      // Show thinking message
+      const thinkingMessage: ChatMessage = {
+        type: 'agent_thinking',
+        content: 'L\'agent analyse votre demande...',
+        timestamp: new Date()
+      };
+      setMessages(prevMessages => [...prevMessages, thinkingMessage]);
 
-      if (useMistral) {
-        if (!selectedRetriever) {
-          setErrorMessage('Please select a retriever first to use Mistral with RAG.');
-          setLoading(false);
-          return;
-        }
-        // First, search with the retriever
-        const cabine =4741
-        const ligne = "L1"
-        const poste = "p0100"
-        const retrieverResponse = await searchPagesWithRetriever(selectedRetriever.name, query,cabine,ligne,poste);
-        answerChunks = retrieverResponse.pages || [];
-        
-        let context = "";
-        if (answerChunks.length <0)  {
-          context = "Use the following information to answer the question:\n\n" +
-                    answerChunks.map(chunk => chunk.document_id).join("\n\n") +
-                    "\n\n";
-        }
+      // Call the LangChain agent with session ID
+      const agentResponse: AgentResponse = await chatWithAgent(
+        query, 
+        selectedRetriever.name,
+        "http://localhost:11434",
+        sessionId
+      );
 
-        const ollamaMessages = messages.map(msg => ({
-          role: msg.type === 'query' ? 'user' : 'assistant',
-          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-        }));
+      // Remove thinking message and add agent response
+      setMessages(prevMessages => {
+        const withoutThinking = prevMessages.filter(msg => msg.type !== 'agent_thinking');
         
-        // Add the context and the current query to the messages for Ollama
-        ollamaMessages.push({ role: 'user', content: context + query });
+        const agentMessage: ChatMessage = {
+          type: 'answer',
+          content: agentResponse.output,
+          chunks: agentResponse.chunks, // Pass chunks for Sources component
+          agentSteps: agentResponse.intermediateSteps,
+          timestamp: new Date()
+        };
         
-        answerContent = await chatWithMistral(ollamaMessages);
-      } else {
-        if (!selectedRetriever) {
-          setErrorMessage('Please select a retriever first.');
-          setLoading(false);
-          return;
-        }
-        const retrieverResponse = await searchWithRetriever(selectedRetriever.name, query);
-        answerContent = "Que chunks";
-        answerChunks = retrieverResponse.chunks || [];
-      }
-      console.log("answerChunks",answerChunks)
-      setMessages(prevMessages => [...prevMessages, { type: 'answer', content: answerContent, chunks: answerChunks }]);
+        return [...withoutThinking, agentMessage];
+      });
+
     } catch (err) {
-      console.error('Error during chat/search:', err);
-      setErrorMessage('Failed to get a response. Please check the server URL and try again.');
+      console.error('Error during agent chat:', err);
+      
+      // Remove thinking message and add error message
+      setMessages(prevMessages => {
+        const withoutThinking = prevMessages.filter(msg => msg.type !== 'agent_thinking');
+        
+        const errorMessage: ChatMessage = {
+          type: 'error',
+          content: `Erreur lors de la communication avec l'agent: ${err instanceof Error ? err.message : 'Erreur inconnue'}`,
+          timestamp: new Date()
+        };
+        
+        return [...withoutThinking, errorMessage];
+      });
+      
+      setErrorMessage('Échec de la communication avec l\'agent. Vérifiez que Ollama est en cours d\'exécution.');
     } finally {
       setLoading(false);
     }
   };
 
-
   return (
     <div className="right-sidebar-content">
-      <h2>Chat</h2>
-      <Form.Check 
-        type="switch"
-        id="mistral-switch"
-        label="Use Mistral (Ollama)"
-        checked={useMistral}
-        onChange={(e) => setUseMistral(e.target.checked)}
-        className="mb-3"
-      />
+      <h2>Chat avec Agent LangChain</h2>
+      <div className="mb-3">
+        <small className="text-muted">
+          {selectedRetriever ? 
+            `Retriever actif: ${selectedRetriever.name}` : 
+            'Aucun retriever sélectionné'
+          }
+        </small>
+      </div>
       <Messages messages={messages} />
-      {loading && <Spinner animation="border" className="my-3" />}
+      {loading && (
+        <div className="d-flex align-items-center my-3">
+          <Spinner animation="border" size="sm" className="me-2" />
+          <span>L'agent traite votre demande...</span>
+        </div>
+      )}
       <Query onSubmit={handleQuerySubmit} loading={loading} />
     </div>
   );

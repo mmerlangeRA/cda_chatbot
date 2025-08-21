@@ -1,12 +1,14 @@
 import React, { useRef, useEffect } from 'react';
 import { ListGroup } from 'react-bootstrap';
 import Message from './Message';
-import { Chunk } from '../../common/interfaces';
+import { Chunk, AgentStep } from '../../common/interfaces';
 
 interface ChatMessage {
-  type: 'query' | 'answer';
-  content: string | object;
+  type: 'query' | 'answer' | 'agent_thinking' | 'error';
+  content: string;
   chunks?: Chunk[];
+  agentSteps?: AgentStep[];
+  timestamp?: Date;
 }
 
 interface MessagesProps {

@@ -1,35 +1,69 @@
 import React from 'react';
-import { ListGroup } from 'react-bootstrap';
+import { ListGroup, Badge } from 'react-bootstrap';
 import Sources from './Sources';
 import { Chunk } from '../../common/interfaces';
 
 interface MessageProps {
-  type: 'query' | 'answer';
-  content: string | object;
+  type: 'query' | 'answer' | 'agent_thinking' | 'error';
+  content: string;
   chunks?: Chunk[];
 }
 
 const Message: React.FC<MessageProps> = ({ type, content, chunks }) => {
-  const isQuery = type === 'query';
-  const variant = isQuery ? 'primary' : 'light';
-  const alignClass = isQuery ? 'text-end' : 'text-start';
+  const getVariantAndClass = () => {
+    switch (type) {
+      case 'query':
+        return { variant: 'primary', alignClass: 'text-end' };
+      case 'answer':
+        return { variant: 'light', alignClass: 'text-start' };
+      case 'agent_thinking':
+        return { variant: 'info', alignClass: 'text-start' };
+      case 'error':
+        return { variant: 'danger', alignClass: 'text-start' };
+      default:
+        return { variant: 'light', alignClass: 'text-start' };
+    }
+  };
+
+  const { variant, alignClass } = getVariantAndClass();
+
+  const renderContent = () => {
+    if (type === 'query') {
+      return <p className="mb-0">{content}</p>;
+    }
+
+    if (type === 'agent_thinking') {
+      return (
+        <div className="d-flex align-items-center">
+          <Badge bg="info" className="me-2">Agent</Badge>
+          <p className="mb-0 fst-italic">{content}</p>
+        </div>
+      );
+    }
+
+    if (type === 'error') {
+      return (
+        <div>
+          <Badge bg="danger" className="me-2">Erreur</Badge>
+          <p className="mb-0">{content}</p>
+        </div>
+      );
+    }
+
+    // Answer type
+    return (
+      <>
+        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {content}
+        </div>
+        <Sources chunks={chunks} />
+      </>
+    );
+  };
 
   return (
     <ListGroup.Item variant={variant} className={`my-2 ${alignClass}`}>
-      {isQuery ? (
-        <p className="mb-0">{content as string}</p>
-      ) : (
-        <>
-          {typeof content === 'string' ? (
-            <p className="mb-0">{content}</p>
-          ) : (
-            <pre className="mb-0" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {JSON.stringify(content, null, 2)}
-            </pre>
-          )}
-          {type === 'answer' && <Sources chunks={chunks} />}
-        </>
-      )}
+      {renderContent()}
     </ListGroup.Item>
   );
 };

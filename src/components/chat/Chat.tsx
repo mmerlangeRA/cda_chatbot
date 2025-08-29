@@ -114,7 +114,7 @@ Exemple : "Trouve-moi les procédures de sécurité pour la cabine 4741, ligne L
 
   return (
     <div className="right-sidebar-content">
-      <h2>Chat avec Agent LangChain</h2>
+      <h2>Chat avec Agent </h2>
       <div className="mb-3">
         <small className="text-muted">
           {selectedRetriever ? 

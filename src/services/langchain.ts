@@ -1,6 +1,7 @@
 import { ChatOllama } from "@langchain/community/chat_models/ollama";
 import { searchPagesWithRetriever } from './rag';
 import { Chunk } from '../common/interfaces';
+import { workstationService } from './localStorage';
 
 // Interface for conversation memory
 interface ConversationMessage {
@@ -101,30 +102,25 @@ export const chatWithAgent = async (
       temperature: 0.1,
     });
 
-    // Extract parameters from conversation history
-    const historyParams = conversationMemory.extractParametersFromHistory(sessionId);
+    // Get workstation fields from localStorage
+    const workstationFields = workstationService.getWorkstationFields();
     
-    // System prompt for the agent with memory context
-    const systemPrompt = `Tu es un assistant pour la recherche dans une base documentaire. 
+    // System prompt for the agent with workstation context
+    const systemPrompt = `Tu es un assistant spécialisé dans la recherche d’informations au sein d’une base documentaire.
 
-Pour rechercher un document, tu as ABSOLUMENT besoin de connaître ces trois paramètres:
-- cabine (numéro de cabine)
-- ligne (identifiant de ligne, ex: "L1", "L2", etc.)
-- poste (identifiant de poste, ex: "p0100", "p0200", etc.)
+Langue : Réponds toujours en français, même si les documents ou la question sont dans une autre langue.
 
-PARAMÈTRES DÉJÀ CONNUS dans cette conversation:
-${historyParams.cabine ? `- Cabine: ${historyParams.cabine}` : '- Cabine: NON FOURNIE'}
-${historyParams.ligne ? `- Ligne: ${historyParams.ligne}` : '- Ligne: NON FOURNIE'}
-${historyParams.poste ? `- Poste: ${historyParams.poste}` : '- Poste: NON FOURNIE'}
+Style : Fournis des réponses précises, claires et synthétiques. Si nécessaire, propose aussi un résumé concis.
 
-Analyse la question de l'utilisateur et combine-la avec les paramètres déjà connus.
+Exactitude : Base-toi uniquement sur le contenu disponible dans la base documentaire. Si une information ne figure pas dans les documents, indique-le explicitement au lieu d’inventer.
 
-Si TOUS les paramètres sont disponibles (soit dans le message actuel, soit dans l'historique), réponds avec "SEARCH:" suivi d'un JSON avec les paramètres.
-Exemple: SEARCH:{"query": "procédures de sécurité", "cabine": 4741, "ligne": "L1", "poste": "p0100"}
+Complétude : Si la question de l’utilisateur est ambiguë, trop générale ou manque de contexte, demande systématiquement les précisions nécessaires avant de répondre.
 
-Si des paramètres manquent encore, demande SEULEMENT les paramètres manquants à l'utilisateur en français.
+Transparence : Lorsque cela est utile, cite ou référence brièvement les passages de documents qui appuient ta réponse.
+Réponds avec "SEARCH:" suivi d'un JSON avec le paramètre query qui résume la requête de l'utilisateur.
+Exemple: SEARCH:{"query": "procédures de sécurité"}
 
-Réponds toujours en français et sois précis dans tes demandes d'informations manquantes.`;
+`;
 
     // Get conversation history for context
     const conversation = conversationMemory.getConversation(sessionId);
@@ -136,7 +132,9 @@ Réponds toujours en français et sois précis dans tes demandes d'informations 
       ...recentMessages.map(msg => ({ role: msg.role, content: msg.content })),
       { role: "user", content: message }
     ];
-
+    const cabine = parseInt(workstationFields.cabine)
+    const ligne = workstationFields.ligne
+    const poste = workstationFields.poste
     // Call the LLM to analyze the user's message with context
     const response = await llm.invoke(messages);
 
@@ -147,8 +145,10 @@ Réponds toujours en français et sois précis dans tes demandes d'informations 
       const jsonPart = responseText.substring(8).trim();
       console.log("step by step")
       try {
+        console.log(jsonPart)
         const searchParams = JSON.parse(jsonPart);
-        const { query, cabine, ligne, poste } = searchParams;
+        const { query} = searchParams;
+
         console.log(searchParams)
         // Validate parameters
         if (!query || !cabine || !ligne || !poste) {
@@ -157,6 +157,7 @@ Réponds toujours en français et sois précis dans tes demandes d'informations 
           };
         }
         console.log("calling !")
+
         // Perform the search
         const searchResult = await searchPagesWithRetriever(retrieverName, query, cabine, ligne, poste);
         console.log(searchResult)
@@ -196,6 +197,8 @@ Réponds toujours en français et sois précis dans tes demandes d'informations 
         };
 
       } catch (parseError) {
+        console.error("Error parsing JSON from LLM response:", parseError);
+
         return {
           output: "Erreur lors de l'analyse des paramètres de recherche. Veuillez reformuler votre demande."
         };

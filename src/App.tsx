@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Form, Button, Spinner, ListGroup, Alert } from 'react-bootstrap';
 import { Documents } from './components/documents';
 import { AlertProvider, useAlert } from './contexts/AlertContext';
 import AlertSuccess from './components/messages/AlertSuccess';
 import AlertError from './components/messages/AlertError';
 import { RetrieverProvider, useRetriever } from './contexts/RetrieverContext';
 import { fetchRetrievers, getDocumentsFromRetriever } from './services/rag';
-import { Retriever } from './common/interfaces';
 import './App.css';
 
 import { Chat } from './components/chat';
 import { PdfViewer } from './components/pdfviewer';
 import { PdfViewerProvider, usePdfViewer } from './contexts/PdfViewerContext';
+import TopBar from './components/TopBar';
+import { WorkstationFields, workstationService } from './services/localStorage';
 
 const AppContent: React.FC = () => {
   const { successMessage, errorMessage, setSuccessMessage, setErrorMessage } = useAlert();
@@ -25,6 +25,11 @@ const AppContent: React.FC = () => {
   const [rightSidebarWidth, setRightSidebarWidth] = useState<number>(350);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragSide, setDragSide] = useState<'left' | 'right' | null>(null);
+
+  // Workstation fields state management
+  const [workstationFields, setWorkstationFields] = useState<WorkstationFields>(() => 
+    workstationService.getWorkstationFields()
+  );
 
   const leftResizeRef = useRef<HTMLDivElement>(null);
   const rightResizeRef = useRef<HTMLDivElement>(null);
@@ -53,6 +58,12 @@ const AppContent: React.FC = () => {
   // Toggle functions
   const toggleLeftSidebar = () => setLeftSidebarVisible(!leftSidebarVisible);
   const toggleRightSidebar = () => setRightSidebarVisible(!rightSidebarVisible);
+
+  // Workstation field change handler
+  const handleWorkstationFieldChange = (field: keyof WorkstationFields, value: string) => {
+    const updatedFields = workstationService.updateField(field, value);
+    setWorkstationFields(updatedFields);
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -148,39 +159,18 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="App">
-      {/* Topbar with logo and toggle buttons */}
-      <div className="topbar">
-        <div className="topbar-left">
-          <button 
-            className="sidebar-toggle-btn"
-            onClick={toggleLeftSidebar}
-            title="Toggle Documents Sidebar (Ctrl+1)"
-          >
-            📁
-          </button>
-          <img 
-            src="/logo-chantiers-atlantique.svg" 
-            alt="Chantiers de l'Atlantique" 
-            className="topbar-logo"
-          />
-          <Form.Group controlId="formRetriever" className="ms-3">
-            <Form.Select onChange={(e) => setSelectedRetriever(retrievers.find(r => r.name === e.target.value) || null)} value={selectedRetriever?.name || ''}>
-              {retrievers.map(retriever => (
-                <option key={retriever.name} value={retriever.name}>{retriever.name}</option>
-              ))}
-            </Form.Select>
-          </Form.Group>
-        </div>
-        <div className="topbar-right">
-          <button 
-            className="sidebar-toggle-btn"
-            onClick={toggleRightSidebar}
-            title="Toggle Answers Sidebar (Ctrl+2)"
-          >
-            💬
-          </button>
-        </div>
-      </div>
+      {/* Topbar component */}
+      <TopBar
+        leftSidebarVisible={leftSidebarVisible}
+        rightSidebarVisible={rightSidebarVisible}
+        toggleLeftSidebar={toggleLeftSidebar}
+        toggleRightSidebar={toggleRightSidebar}
+        retrievers={retrievers}
+        selectedRetriever={selectedRetriever}
+        setSelectedRetriever={setSelectedRetriever}
+        workstationFields={workstationFields}
+        onWorkstationFieldChange={handleWorkstationFieldChange}
+      />
       
       {/* Main layout */}
       <div 
